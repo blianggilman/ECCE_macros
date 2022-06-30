@@ -90,3 +90,5 @@ tmtags
 # valgrind
 *.valgrind
 *.log
+
+/detectors/EICDetector/analysis/plots/
