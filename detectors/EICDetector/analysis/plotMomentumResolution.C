@@ -25,6 +25,28 @@ char pbins[10][20] = {"0 < p < 2", "2 < p < 4", "4 < p < 6", "6 < p < 8", "8 < p
 //first need to initialize histogram
 vector<vector<TH1F*>> mom_res_preliminary_hists(14);
 vector<vector<TH1F*>> mom_res_hists(14);
+vector<vector<TH1F*>> mom_res_hists_direct(14);
+
+void initializeHists(){
+    for (int i=0; i<14; i++){
+        mom_res_preliminary_hists[i] = vector<TH1F*>(10);
+        mom_res_hists[i] = vector<TH1F*>(10);
+        mom_res_hists_direct[i] = vector<TH1F*>(10);
+
+        for(int j=0; j<10; j++){
+            // cout << "iteration: " << i << ", " << j << endl;
+
+            // char title[] = ("mom_res_eta%c-%c_p%d-%d", etachars[i], etachars[i+1], j*2, j*2+2);
+            // char label[] = (";dp/p, %d < #eta < %d, %d < p < %d", etavals[i], etavals[i+1], j*2, j*2+2);
+            char title[1024];
+            sprintf(title, "mom_res_eta%s-%s_p%d-%d", etachars[i], etachars[i+1], j*2, j*2+2);
+            char label[1024];
+            sprintf(label, ";dp/p, %f < #eta < %f, %d < p < %d", etavals[i], etavals[i+1], j*2, j*2+2);
+            mom_res_preliminary_hists[i][j] = new TH1F(title,label,100,-1,1);
+
+        }
+    }
+}
 
 
 
@@ -49,12 +71,6 @@ float calculateEta(float px, float py, float pz){
 
 //calculate the momentum resolution
 float calculateMomRes(float gpx, float gpy, float gpz, float px, float py, float pz){
-    // //subtract the vectors, then take the magnitude
-    // float gp = calculateP(gpx, gpy, gpz); 
-    // // float p = calculateP(px, py, pz); //originally tried to divide by this
-    // float num = calculateP(px-gpx, py-gpy, pz-gpz);
-    // return abs(num)/abs(gp);
-
     //take the magnitude of each momentum vector, then subtract and take the absolute value
     float p = calculateP(px, py, pz);
     float gp = calculateP(gpx, gpy, gpz);
@@ -64,73 +80,42 @@ float calculateMomRes(float gpx, float gpy, float gpz, float px, float py, float
 
 
 //make gaussian fits
-Double_t** makeFits(){
+Double_t** makeFits(vector<vector<TH1F*>> hists, Double_t** st_dev=NULL){
 
-    TF1* g1 = new TF1("g1", "gaus",-0.1,0.1);
-    Double_t** st_dev = 0;
-    st_dev = new double*[14]; //[eta range][p range] in order from min to max (neg->pos)
+    double lowerbound = -0.1;
+    double upperbound = 0.1;
+
+    // TF1* g1 = new TF1("g1", "gaus",lowerbound,upperbound);
+    Double_t** st_dev_new = 0;
+    st_dev_new = new double*[14]; //[eta range][p range] in order from min to max (neg->pos)
     for (int i=0; i<14; i++){
-        st_dev[i] = new double[10];
-    }
-    // int etactr = 0;
-    // int pctr = 0;
-    
-    for (int i=0; i<14; i++){
-        // if (i==1 || i==2 || i== 3) continue; //CHANGE THIS AFTER TEST
+        st_dev_new[i] = new double[10];
         for (int j=0; j<10; j++){
-            mom_res_preliminary_hists[i][j]->Fit(g1, "R");
-            st_dev[i][j] = g1->GetParameter(2);
+            if (st_dev != NULL){
+                lowerbound = st_dev[i][j]*-3.;
+                upperbound = st_dev[i][j]*3.;
+            }
+            TF1* g1 = new TF1("g1", "gaus",lowerbound,upperbound);
+
+            hists[i][j]->Fit(g1, "RQ");
+            st_dev_new[i][j] = g1->GetParameter(2);
         }
-        // if (i==4) break; //CHANGE THIS AFTER TEST
-        
     }
 
 
-    // cout << "param fits" << st_dev[0] << " " << st_dev[1] << " " << st_dev[2] << " " << st_dev[3] << " " << st_dev[4] << " " << st_dev[5]<<endl;
+    // // print st_dev_new values
+    // for (int i=0; i<10; i++){
+    //     cout << st_dev_new[0][i] << endl;
+    // }
 
-    for (int i=0; i<10; i++){
-        cout << st_dev[0][i] << endl;
-    }
-
-    // return st_dev;
-    return st_dev;
+    return st_dev_new;
 
 
 }
 
-//make gaussian fits
-Double_t** makeFits2(){
-
-    TF1* g1 = new TF1("g1", "gaus",-0.1,0.1);
-    Double_t** st_dev = 0;
-    st_dev = new double*[14]; //[eta range][p range] in order from min to max (neg->pos)
-    for (int i=0; i<14; i++){
-        st_dev[i] = new double[10];
-    }
-    
-    for (int i=0; i<14; i++){
-        for (int j=0; j<10; j++){
-            mom_res_hists[i][j]->Fit(g1, "R");
-            st_dev[i][j] = g1->GetParameter(2);
-        }
-    }
-   
-    for (int i=0; i<10; i++){
-        cout << st_dev[0][i] << endl;
-    }
-
-    // return st_dev;
-    return st_dev;
-        
-}
 
 
 //calculate PWG requirements
-// Double_t** makeFits(){
-
-//     TF1* g1 = new TF1("g1", "gaus",-0.1,0.1);
-//     Double_t** st_dev = 0;
-//     st_dev = new double*[14];
 double* calculatePWGreqs(int i, double p[]){
     double A[] = {0.1, 0.1, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.1, 0.1};
     double B[] = {0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 1., 1., 1., 2., 2.};
@@ -148,31 +133,31 @@ double* calculatePWGreqs(int i, double p[]){
 
 
 //plot SD results
-void plotSD(Double_t** st_dev){
+void plotSD(Double_t** st_dev, Double_t** st_dev_direct){
     
-    //initialize array of hists
-    // TGraph* momPlots_by_eta[14];
-    std::vector<TGraph*> momPlots_by_eta(14);
+    //initialize array of TGraphs
     std::vector<TGraph*> pwg_req_eqs(14);
+    std::vector<TGraph*> momPlots_by_eta(14);
+    std::vector<TGraph*> momPlots_by_eta_direct(14);
     const Int_t n = 10;
     double p[n] = {2.,4.,6.,8.,10.,12.,14.,16.,18.,20.};
-
-    // for (int i=0; i<10; i++){
-    //     cout << st_dev[0][i] << endl;
-    // }
     
 
     //make eta labels
     std::vector<TLatex*> etalabels(14);
-    cout << "length of eta " << sizeof(etabins) << " " << sizeof(etalabels) << endl;
+    // cout << "length of eta " << sizeof(etabins) << " " << sizeof(etalabels) << endl;
     for (int i=0; i<14; i++) {
         double* dp_p = calculatePWGreqs(i, p);
         double* max;
         max = max_element(&dp_p[i], &dp_p[i]+10);
 
         double width = 16.;
-        double height = *max*0.5;
-        // cout << "MAXIMUM!!!! " << *max << ", " << height << endl;
+        double height = *max;
+        cout << "terms in dp/p: ";
+        for (int j=0; j<10; j++){
+            cout << &dp_p[i]+j << " ";
+        }
+        cout << "MAXIMUM!!!! " << *max << ", " << height << endl;
         etalabels[i] = new TLatex(width,height,etabins[i]);
         // cout << "eta label " << i << ": " << etalabels[i] << endl;
 
@@ -180,56 +165,50 @@ void plotSD(Double_t** st_dev){
 
 
     //fill graphs and plot, also get PWG requirements
-    TCanvas *c15 = new TCanvas("c15","c15",1200,900);
-    c15->Divide(3,5);
+    TCanvas *c1 = new TCanvas("c1","c1",1200,900);
+    c1->Divide(3,5);
     
     for(int i=0; i<14; i++){
         // cout << "iteration: " << i << endl;
+        // cout << st_dev[1][1] << ", " << st_dev[5][5] << endl;
 
-        cout << st_dev[1][1] << ", " << st_dev[5][5] << endl;
         //convert st dev's into percentages
         for (int j=0; j<10; j++){
             st_dev[i][j] *= 100.0;
+            st_dev_direct[i][j] *= 100.0;
         }
         
-        cout << st_dev[1][1] << ", " << st_dev[5][5] << endl;
         momPlots_by_eta[i] = new TGraph(n,p,st_dev[i]);
+        momPlots_by_eta_direct[i] = new TGraph(n,p,st_dev_direct[i]);
 
         double* dp_p = calculatePWGreqs(i, p);
-        // TGraph *g2 = new TGraph(n, p, dp_p);
         pwg_req_eqs[i] = new TGraph(n,p,dp_p);
 
-        c15->cd(i+1);
+        c1->cd(i+1);
         TMultiGraph *mg = new TMultiGraph();
         mg->Add(momPlots_by_eta[i]);
         mg->Add(pwg_req_eqs[i]);
-        mg->Draw("ALP");
-        // momPlots_by_eta[i]->Draw("ACP");
+        mg->Add(momPlots_by_eta_direct[i]);
+        mg->Draw("ALP"); //"ACP"
+
         momPlots_by_eta[i]->SetLineColor(4);
-        momPlots_by_eta[i]->SetLineWidth(4);
         momPlots_by_eta[i]->SetMarkerColor(4);
-        momPlots_by_eta[i]->SetMarkerSize(1.5);
-        momPlots_by_eta[i]->SetMarkerStyle(21);
+        momPlots_by_eta[i]->SetMarkerStyle(2);
+        momPlots_by_eta_direct[i]->SetLineColor(2);
+        momPlots_by_eta_direct[i]->SetMarkerColor(2);
+        momPlots_by_eta_direct[i]->SetMarkerStyle(5);
 
         mg->GetXaxis()->SetTitle("Track p [GeV/c]");
         mg->GetYaxis()->SetTitle("#Deltap/p (%)");
         mg->GetXaxis()->CenterTitle();
         mg->GetYaxis()->CenterTitle();
-        // mg->GetXaxis()->SetLabelFont(36);
-        // mg->GetYaxis()->SetLabelFont(36);
-        // momPlots_by_eta[i]->GetXaxis()->SetTitle("Track p [GeV/c]");
-        // momPlots_by_eta[i]->GetYaxis()->SetTitle("#Deltap/p");
-        // // momPlots_by_eta[i]->GetHistogram()->SetMinimum(0.);
-        // // momPlots_by_eta[i]->GetHistogram()->SetMinimum(0.2);
 
         etalabels[i]->SetTextFont(43); etalabels[i]->SetTextSize(12);
         etalabels[i]->Draw("same");
 
-        // pwg_req_eqs[i]->Draw("ACP");
-
     }
 
-    c15->Print("plots/mom_res_SD_by_eta.pdf");
+    c1->Print("plots/mom_res_SD_by_eta.pdf");
 
 
 }
@@ -242,7 +221,6 @@ void plotSD(Double_t** st_dev){
 void plotMomRes(int nEntries){    
 
     int ctr[14];
-
     int max[14];
     int savei[14];
 
@@ -257,12 +235,11 @@ void plotMomRes(int nEntries){
         float momRes = calculateMomRes(gpx,gpy,gpz,px,py,pz);
         
 
-        if (i<10) cout << "p for " <<i << " is " << px << ", " << py << ", " << pz << endl;
+        if (i<10) cout << "p for " <<i << " is " << px << ", " << py << ", " << pz << " --> " << p << endl;
         if (i<10) cout << "eta for " <<i << " is " << eta << endl;
-        if (i<10) cout << "p for " <<i << " is " << p << endl;
         if (i<10) cout << "theta for " <<i << " is " << acos(pz/p) << endl;
 
-
+        //fill hists
         for (int i=0; i<14; i++){
             for (int j=0; j<10; j++){
                 if (eta > etavals[i] && eta <= etavals[i+1]) {
@@ -280,50 +257,59 @@ void plotMomRes(int nEntries){
 
     }
 
+    //print statements
     cout << "COUNTERS" << endl;
-    cout << ctr[0] << " " << ctr[1] << " " << ctr[2] << " " << ctr[3]  << " " << ctr[4] << " " << ctr[5] << " " << ctr[6] << " " << ctr[7] << endl;
-    cout << ctr[8] << " " << ctr[9] << " " << ctr[10] << " " << ctr[11] << " " << ctr[12] << " " << ctr[13] << endl;
+    for(int i=0; i<14; i++){
+        cout << i << ": " << ctr[0] << endl;
+    }
     cout << "MAX VALS PER ETA (event#: max resolution)" << endl;
-    cout << savei[0] << ": " << max[0] << " " << savei[1] << ": " << max[1] << " " << savei[2] << ": " << max[2] << " " << savei[3] << ": " << max[3] << endl;
-    cout << savei[4] << ": " << max[4] << " " << savei[5] << ": " << max[5] << " " << savei[6] << ": " << max[6] << " " << savei[7] << ": " << max[7] << endl;
-    cout << savei[8] << ": " << max[8] << " " << savei[9] << ": " << max[9] << " " << savei[10] << ": " << max[10] << " " << savei[11] << ": " << max[11] << endl;
-    cout << savei[12] << ": " << max[12] << " " << savei[13] << ": " << max[13] << endl;
+    for(int i=0; i<14; i++){
+        cout << savei[i] << ": " << max[i] << endl;
+    }
+
 
 
     //calculate standard deviations
-    Double_t** st_dev_preliminary = 0;
-    st_dev_preliminary = new double*[14]; //[eta range][p range] in order from min to max (neg->pos)
+    Double_t** st_dev_direct = 0;
+    st_dev_direct = new double*[14]; //[eta range][p range] in order from min to max (neg->pos)
     for (int i=0; i<14; i++){
-        st_dev_preliminary[i] = new double[10];
+        st_dev_direct[i] = new double[10];
         for (int j=0; j<10; j++){
-            st_dev_preliminary[i][j] = mom_res_preliminary_hists[i][j]->GetStdDev();
+            st_dev_direct[i][j] = mom_res_preliminary_hists[i][j]->GetStdDev();
         }
     }
 
 
     //make fits
-    Double_t** st_dev = makeFits();
+    Double_t** st_dev_fromfit = makeFits(mom_res_preliminary_hists);
 
+    //print statements
     cout << "compare st devs!!!!" << endl;
     for (int i=0; i<14; i++){
         for (int j=0; j<10; j++){
-            cout << st_dev_preliminary[i][j] << " ?= " << st_dev[i][j] << endl;
+            cout << st_dev_direct[i][j] << " ?= " << st_dev_fromfit[i][j] << endl;
         }
     }
     
 
-    //redefine histograms with new binning
+    //redefine histograms with new binning from std dev w fits and calculated directly
     for (int i=0; i<14; i++){
         for(int j=0; j<10; j++){
             char title[1024];
             sprintf(title, "mom_res_eta%s-%s_p%d-%d_rebinned", etachars[i], etachars[i+1], j*2, j*2+2);
             char label[1024];
             sprintf(label, ";dp/p, %f < #eta < %f, %d < p < %d", etavals[i], etavals[i+1], j*2, j*2+2);
-            mom_res_hists[i][j] = new TH1F(title, label, 100, -3*st_dev[i][j], 3*st_dev[i][j]);
+            mom_res_hists[i][j] = new TH1F(title, label, 100, -3*st_dev_fromfit[i][j], 3*st_dev_fromfit[i][j]);
+
+            //calculated directly
+            char title_direct[1024];
+            sprintf(title_direct, "mom_res_eta%s-%s_p%d-%d_direct_rebinned", etachars[i], etachars[i+1], j*2, j*2+2);
+            mom_res_hists_direct[i][j] = new TH1F(title_direct, label, 100, -3*st_dev_direct[i][j], 3*st_dev_direct[i][j]);
         }
     }
 
-    //fill histograms with new binning
+
+    //fill histograms with new binning from std dev w fits
     for (int i=0; i<nEntries; i++) {
         if (i%1000000==0) cout << "jet: " << i << " out of: " << nEntries << endl;
         
@@ -335,47 +321,42 @@ void plotMomRes(int nEntries){
         for (int i=0; i<14; i++){
             for (int j=0; j<10; j++){
                 if (eta > etavals[i] && eta <= etavals[i+1]) {
-                    if (p > j*2 && p <= j*2+2) mom_res_hists[i][j]->Fill(momRes); //does comparison have to be a double?
+                    if (p > j*2 && p <= j*2+2) {
+                        mom_res_hists[i][j]->Fill(momRes); //does comparison have to be a double?
+                        mom_res_hists_direct[i][j]->Fill(momRes);
+                    }
                 }
             }
         }
     }
 
-    Double_t** st_dev_2 = makeFits2();
+    Double_t** st_dev_final_fromfit = makeFits(mom_res_hists, st_dev_fromfit);
+    Double_t** st_dev_final_direct = makeFits(mom_res_hists, st_dev_direct);
 
-
-
-
-    //Study this more later - why isn't it showing up??
-    // TF1* g1 = new TF1("g1", "gaus",-0.1,0.1);
-    // mom_res_eta0005_p0708->Fit(g1, "R"); 
-    // cout << "PARAM FOR ONE THATS NOT SHOWING UP" << g1->GetParameter(2) << endl;
 
 
     //make canvas to draw
     vector<TCanvas*> canvas(14);
+    // vector<TCanvas*> canvas_direct(14);
     for (int i=0; i<14; i++){
         char canvas_title[1024];
         sprintf(canvas_title, "c%d", i);
         canvas[i] = new TCanvas(canvas_title,canvas_title,1200,900);
         canvas[i]->Divide(5,2);
+        // canvas_direct[i] = new TCanvas(canvas_title,canvas_title,1200,900);
+        // canvas_direct[i]->Divide(5,2);
 
     }
 
-
-    // // TCanvas c1 = makeCanvas();
-    // TCanvas *c1 = new TCanvas("c1","c1",1200,900);
-    // c1->Divide(5,2);
-    // // c1->SetTitle("Jet Energy Drop by p");
-    // // gPad->SetLogy();
-
-    // // String outname = "mom_res_eta"
 
     for (int i=0; i<14; i++){
         for (int j=0; j<10; j++){
             canvas[i]->cd(j+1);
             // mom_res_preliminary_hists[i][j]->Draw();
             mom_res_hists[i][j]->Draw();
+
+            // canvas_direct[i]->cd(j+q);
+            // mom_res_hists_direct[i]->Draw();
 
         }
         char outname[1024];
@@ -384,54 +365,20 @@ void plotMomRes(int nEntries){
     }
 
 
-    cout << "line 1109" << endl;
-
     //plot SD
-    // for (int i=0; i<10; i++){
-    //     cout << st_dev[0][i] << endl;
-    // }
-    plotSD(st_dev_2);
+    plotSD(st_dev_final_fromfit, st_dev_final_direct);
 
 }
 
 
 
-//THIS DOESN'T WORK
-TCanvas* makeCanvas(){
-    //p canvas
-    TCanvas *c1 = new TCanvas("c1","c1",1200,900);
-    c1->Divide(5,2);
-    // c1->SetTitle("Jet Energy Drop by p");
-    gPad->SetLogy();
 
-    return c1;
-}
-
-
-
-//combine
+//combine - main method
 void plotMomentumResolution(){
     TH1::SetDefaultSumw2();
     TH2::SetDefaultSumw2();
-    
-    for (int i=0; i<14; i++){
-        mom_res_preliminary_hists[i] = vector<TH1F*>(10);
-        mom_res_hists[i] = vector<TH1F*>(10);
 
-        for(int j=0; j<10; j++){
-            // cout << "iteration: " << i << ", " << j << endl;
-
-            // char title[] = ("mom_res_eta%c-%c_p%d-%d", etachars[i], etachars[i+1], j*2, j*2+2);
-            // char label[] = (";dp/p, %d < #eta < %d, %d < p < %d", etavals[i], etavals[i+1], j*2, j*2+2);
-            char title[1024];
-            sprintf(title, "mom_res_eta%s-%s_p%d-%d", etachars[i], etachars[i+1], j*2, j*2+2);
-            char label[1024];
-            sprintf(label, ";dp/p, %f < #eta < %f, %d < p < %d", etavals[i], etavals[i+1], j*2, j*2+2);
-            mom_res_preliminary_hists[i][j] = new TH1F(title,label,100,-1,1);
-
-        }
-    }
-
+    initializeHists();
 
     tree->SetBranchAddress("gpx", &gpx);
     tree->SetBranchAddress("gpy", &gpy);
@@ -442,7 +389,6 @@ void plotMomentumResolution(){
 
     
     const int nEntries = tree->GetEntries();
-
     plotMomRes(nEntries); 
 
 }
